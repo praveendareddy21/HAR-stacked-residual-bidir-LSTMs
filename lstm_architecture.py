@@ -90,6 +90,8 @@ def relu_fc(input_2D_tensor_list, features_len, new_features_len, config):
     return output_2D_tensor_list
 
 
+
+
 def single_LSTM_cell(input_hidden_tensor, n_outputs):
     """ define the basic LSTM layer
         argument:
@@ -101,8 +103,9 @@ def single_LSTM_cell(input_hidden_tensor, n_outputs):
                      shape: time_steps*[batch_size,n_outputs]
     """
     with tf.variable_scope("lstm_cell"):
-        lstm_cell = tf.nn.rnn_cell.BasicLSTMCell(n_outputs, state_is_tuple=True, forget_bias=0.999)
-        outputs, _ = tf.nn.rnn(lstm_cell, input_hidden_tensor, dtype=tf.float32)
+        lstm_cell = tf.contrib.rnn.BasicLSTMCell(n_outputs, state_is_tuple=True, forget_bias=0.999)
+        #outputs, _ = tf.nn.rnn(lstm_cell, input_hidden_tensor, dtype=tf.float32)
+        outputs, _ = tf.contrib.rnn.static_rnn(lstm_cell, input_hidden_tensor, dtype=tf.float32)
     return outputs
 
 
@@ -136,7 +139,7 @@ def bi_LSTM_cell(input_hidden_tensor, n_inputs, n_outputs, config):
         # dimension, like if the two cells acted as one cell
         # with twice the n_hidden size:
         layer_hidden_outputs = [
-            tf.concat(len(f.get_shape()) - 1, [f, b])
+            tf.concat(axis=len(f.get_shape()) - 1, values=[f, b])
                 for f, b in zip(forward, backward)]
 
     return layer_hidden_outputs
@@ -203,7 +206,7 @@ def LSTM_network(feature_mat, config, keep_prob_for_dropout):
         # New feature_mat's shape: [time_steps*batch_size, n_inputs]
 
         # Split the series because the rnn cell needs time_steps features, each of shape:
-        hidden = tf.split(0, config.n_steps, feature_mat)
+        hidden = tf.split(axis=0, num_or_size_splits=config.n_steps, value=feature_mat)
         print (len(hidden), str(hidden[0].get_shape()))
         # New shape: a list of lenght "time_step" containing tensors of shape [batch_size, n_hidden]
 
@@ -281,7 +284,7 @@ def run_with_config(Config, X_train, y_train, X_test, y_test):
         # first_weights = [w for w in tf.all_variables() if w.name == 'LSTM_network/layer_1/pass_forward/relu_fc_weights:0'][0]
         # l1 = config.lambda_loss_amount * tf.reduce_mean(tf.abs(first_weights))
         loss = tf.reduce_mean(
-            tf.nn.softmax_cross_entropy_with_logits(pred_y, Y)) + l2  # + l1
+            tf.nn.softmax_cross_entropy_with_logits(logits=pred_y, labels=Y)) + l2  # + l1
 
         # Gradient clipping Adam optimizer with gradient noise
         optimize = tf.contrib.layers.optimize_loss(
@@ -303,7 +306,7 @@ def run_with_config(Config, X_train, y_train, X_test, y_test):
 
     sessconfig = tf.ConfigProto(log_device_placement=False)
     with tf.Session(config=sessconfig) as sess:
-        tf.initialize_all_variables().run()
+        tf.global_variables_initializer().run()
 
         best_accuracy = (0.0, "iter: -1")
         best_f1_score = (0.0, "iter: -1")
